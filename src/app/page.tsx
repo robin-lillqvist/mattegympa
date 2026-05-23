@@ -119,26 +119,23 @@ function DecorativeShapes({ stage }: { stage: string }) {
   if (stage === "lagstadiet") {
     return (
       <>
-        <span className="absolute -bottom-6 -right-6 w-32 h-32 rounded-full bg-white/30 blur-2xl" />
-        <span className="absolute top-6 right-8 text-4xl">🌟</span>
-        <span className="absolute bottom-8 left-6 text-3xl">🎈</span>
+        <span aria-hidden className="absolute -bottom-6 -right-6 w-32 h-32 rounded-full bg-white/30 blur-2xl" />
+        <span aria-hidden className="absolute top-6 right-8 text-4xl">🎈</span>
       </>
     );
   }
   if (stage === "mellanstadiet") {
     return (
       <>
-        <span className="absolute -bottom-8 -right-8 w-40 h-40 rounded-2xl rotate-12 bg-white/30 blur-2xl" />
-        <span className="absolute top-5 right-6 text-3xl">📐</span>
-        <span className="absolute bottom-5 left-6 text-3xl">🧮</span>
+        <span aria-hidden className="absolute -bottom-8 -right-8 w-40 h-40 rounded-2xl rotate-12 bg-white/30 blur-2xl" />
+        <span aria-hidden className="absolute top-5 right-8 text-3xl">📐</span>
       </>
     );
   }
   return (
     <>
-      <span className="absolute -bottom-10 -right-10 w-48 h-48 rounded-full bg-fuchsia-400/30 blur-3xl" />
-      <span className="absolute top-5 right-6 text-3xl opacity-90">∑</span>
-      <span className="absolute bottom-6 left-6 text-3xl opacity-90">√x</span>
+      <span aria-hidden className="absolute -bottom-10 -right-10 w-48 h-48 rounded-full bg-fuchsia-400/30 blur-3xl" />
+      <span aria-hidden className="absolute top-5 right-8 text-3xl opacity-90">∑</span>
     </>
   );
 }

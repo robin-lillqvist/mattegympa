@@ -47,6 +47,14 @@ export function ExerciseSession({
   const isDark = stage === "hogstadiet";
   const current = exercises[idx];
 
+  const keyboardMode = (() => {
+    if (!current || current.kind !== "input") return "text" as const;
+    const a = current.answer;
+    if (/^-?\d+$/.test(a)) return "numeric" as const;
+    if (/^-?[\d.,]+$/.test(a)) return "decimal" as const;
+    return "text" as const;
+  })();
+
   useEffect(() => {
     setProgressState(loadProgress());
   }, []);
@@ -183,8 +191,7 @@ export function ExerciseSession({
       </div>
 
       <div
-        key={current.id}
-        className={`mt-6 card p-8 pop ${isDark ? "!bg-slate-900/70 !border-slate-700" : ""} ${status === "wrong" ? "shake" : ""}`}
+        className={`mt-6 card p-8 ${isDark ? "!bg-slate-900/70 !border-slate-700" : ""} ${status === "wrong" ? "shake" : ""}`}
       >
         {current.visual?.kind === "clock" && (
           <div className="flex justify-center mb-6">
@@ -254,7 +261,11 @@ export function ExerciseSession({
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 disabled={status !== "idle"}
-                inputMode="text"
+                inputMode={keyboardMode}
+                enterKeyHint="send"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
                 placeholder="Ditt svar"
                 className={`flex-1 px-5 py-4 text-xl font-bold rounded-xl border-2 focus:outline-none focus:border-rose-500 ${
                   isDark
