@@ -1,7 +1,15 @@
-import type { Exercise, Generator, Level, TopicId } from "./types";
+import type { Exercise, Generator, Grade, Level, TopicId } from "./types";
+import { effectiveLevel } from "./curriculum";
 import { makeChoices, pick, randInt, shuffle, uid } from "./rand";
 
 const id = () => uid();
+
+/**
+ * Intern signatur som generatorerna nedan använder.
+ * Den publika `Generator`-typen tar (rng, grade, master) — vi wrappar
+ * varje intern generator i `GENERATORS`-registret för att översätta.
+ */
+type InternalGenerator = (rng: () => number, level: Level) => Exercise;
 
 // Per-level helpers: pick a value from a level-specific bucket.
 const byLevel = <T>(level: Level, buckets: [T, T, T, T]): T => buckets[level - 1];
@@ -10,7 +18,7 @@ const byLevel = <T>(level: Level, buckets: [T, T, T, T]): T => buckets[level - 1
 // LÅGSTADIET
 // ============================================================
 
-const talraknemastare: Generator = (rng, level) => {
+const talraknemastare: InternalGenerator = (rng, level) => {
   // Strictly non-overlapping ranges + different concepts per level.
   const range = byLevel<[number, number]>(level, [
     [1, 20], // L1: små tal, "före/efter"
@@ -68,7 +76,7 @@ const talraknemastare: Generator = (rng, level) => {
   };
 };
 
-const talkompisar: Generator = (rng, level) => {
+const talkompisar: InternalGenerator = (rng, level) => {
   const target = byLevel(level, [10, 20, 100, 100]);
   const stepOf = byLevel(level, [1, 1, 10, 1]);
   let a: number;
@@ -95,7 +103,7 @@ const talkompisar: Generator = (rng, level) => {
   };
 };
 
-const additionSub100: Generator = (rng, level) => {
+const additionSub100: InternalGenerator = (rng, level) => {
   // Konceptuell progression:
   // L1: ensiffrigt + ensiffrigt, sum ≤ 10 (inga tiotalsövergångar)
   // L2: ensiffrigt + ensiffrigt med tiotalsövergång (sum 11–18)
@@ -131,7 +139,7 @@ const additionSub100: Generator = (rng, level) => {
   };
 };
 
-const subtraktionSub100: Generator = (rng, level) => {
+const subtraktionSub100: InternalGenerator = (rng, level) => {
   // Konceptuell progression:
   // L1: ensiffrigt − ensiffrigt, resultat 1–8 (ingen lån)
   // L2: tvåsiffrigt − ensiffrigt, ingen lån (28 − 5)
@@ -174,7 +182,7 @@ const subtraktionSub100: Generator = (rng, level) => {
   };
 };
 
-const talmonster: Generator = (rng, level) => {
+const talmonster: InternalGenerator = (rng, level) => {
   // L1: hoppa 2 eller 5 från små starttal
   // L2: hoppa 10 från godtyckliga, eller udda steg som 3
   // L3: större steg (7, 8, 9), kan börja högre
@@ -243,7 +251,7 @@ const describeTime = (h: number, m: number): string => {
   return `${capitalize(word)} i ${next}`;
 };
 
-const klockan: Generator = (rng, level) => {
+const klockan: InternalGenerator = (rng, level) => {
   const minuteBuckets = byLevel<number[]>(level, [
     [0], // L1: bara hela timmar
     [15, 30, 45], // L2: bara halvor och kvartar (inga hela timmar)
@@ -300,7 +308,7 @@ const klockan: Generator = (rng, level) => {
   };
 };
 
-const former: Generator = (rng, level) => {
+const former: InternalGenerator = (rng, level) => {
   // L1: bara triangel + fyrhörning, fråga "hur många hörn?"
   // L2: bara femhörning + sexhörning, fråga "hur många hörn?"
   // L3: namn-från-hörn, alla 3–6 hörn (omvänt håll)
@@ -379,7 +387,7 @@ const former: Generator = (rng, level) => {
   };
 };
 
-const matning: Generator = (rng, level) => {
+const matning: InternalGenerator = (rng, level) => {
   type Conversion = { from: string; to: string; factor: number; range: [number, number] };
   const easy: Conversion[] = [
     { from: "meter", to: "centimeter", factor: 100, range: [1, 5] },
@@ -411,7 +419,7 @@ const matning: Generator = (rng, level) => {
   };
 };
 
-const halvorOchDelar: Generator = (rng, level) => {
+const halvorOchDelar: InternalGenerator = (rng, level) => {
   const denom = pick(
     rng,
     byLevel<number[]>(level, [[2], [2, 4], [2, 4, 3], [2, 4, 3, 5]]),
@@ -447,7 +455,7 @@ const halvorOchDelar: Generator = (rng, level) => {
 // MELLANSTADIET
 // ============================================================
 
-const multiplikationstabellen: Generator = (rng, level) => {
+const multiplikationstabellen: InternalGenerator = (rng, level) => {
   // L1: enkla tabeller (2, 5, 10) — ofta automatiserade tidigt
   // L2: medel-tabeller (3, 4, 6)
   // L3: svåra tabeller (7, 8, 9)
@@ -478,7 +486,7 @@ const multiplikationstabellen: Generator = (rng, level) => {
   };
 };
 
-const division: Generator = (rng, level) => {
+const division: InternalGenerator = (rng, level) => {
   // L1: 2, 5, 10-tabellen baklänges, jämn division (a ≤ 50)
   // L2: 3, 4, 6-tabellen baklänges, jämn division
   // L3: jämn division med 7, 8, 9 + alltid med rest
@@ -536,7 +544,7 @@ const division: Generator = (rng, level) => {
   };
 };
 
-const storaTal: Generator = (rng, level) => {
+const storaTal: InternalGenerator = (rng, level) => {
   const range = byLevel<[number, number]>(level, [
     [100, 999],
     [1000, 9999],
@@ -563,7 +571,7 @@ const storaTal: Generator = (rng, level) => {
   };
 };
 
-const decimaltal: Generator = (rng, level) => {
+const decimaltal: InternalGenerator = (rng, level) => {
   const fmt = (n: number, d: number) => Number(n.toFixed(d)).toString().replace(".", ",");
   if (level <= 2) {
     const a = randInt(rng, 10, level === 1 ? 50 : 99) / 10;
@@ -603,7 +611,7 @@ const decimaltal: Generator = (rng, level) => {
   };
 };
 
-const brak: Generator = (rng, level) => {
+const brak: InternalGenerator = (rng, level) => {
   const denomChoices = byLevel<number[]>(level, [[2, 4], [4, 6, 8], [6, 8, 10], [8, 10, 12]]);
   const den = pick(rng, denomChoices);
   if (level <= 2) {
@@ -645,7 +653,7 @@ const brak: Generator = (rng, level) => {
   };
 };
 
-const procent: Generator = (rng, level) => {
+const procent: InternalGenerator = (rng, level) => {
   // L1: bara 50% och 100% av "runda" tal (100, 200, 400 ...)
   // L2: 10% och 25% av runda tal
   // L3: andra procent (15%, 20%, 30%) av runda tal
@@ -692,7 +700,7 @@ const procent: Generator = (rng, level) => {
   };
 };
 
-const geometriArea: Generator = (rng, level) => {
+const geometriArea: InternalGenerator = (rng, level) => {
   const range = byLevel<[number, number]>(level, [
     [2, 6],
     [3, 12],
@@ -728,7 +736,7 @@ const geometriArea: Generator = (rng, level) => {
   };
 };
 
-const tidOchEnheter: Generator = (rng, level) => {
+const tidOchEnheter: InternalGenerator = (rng, level) => {
   type Conversion = { from: string; to: string; factor: number; range: [number, number] };
   const easy: Conversion[] = [
     { from: "timmar", to: "minuter", factor: 60, range: [1, 4] },
@@ -760,7 +768,7 @@ const tidOchEnheter: Generator = (rng, level) => {
   };
 };
 
-const statistik: Generator = (rng, level) => {
+const statistik: InternalGenerator = (rng, level) => {
   const n = byLevel(level, [3, 4, 5, 6]);
   if (level >= 3 && rng() < 0.4) {
     // Median
@@ -808,7 +816,7 @@ const statistik: Generator = (rng, level) => {
 // HÖGSTADIET
 // ============================================================
 
-const algebraUttryck: Generator = (rng, level) => {
+const algebraUttryck: InternalGenerator = (rng, level) => {
   if (level === 1) {
     // Substitution
     const a = randInt(rng, 2, 5);
@@ -855,7 +863,7 @@ const algebraUttryck: Generator = (rng, level) => {
   };
 };
 
-const ekvationer: Generator = (rng, level) => {
+const ekvationer: InternalGenerator = (rng, level) => {
   if (level === 1) {
     // x + a = b
     const x = randInt(rng, 1, 15);
@@ -909,7 +917,7 @@ const ekvationer: Generator = (rng, level) => {
   };
 };
 
-const potenser: Generator = (rng, level) => {
+const potenser: InternalGenerator = (rng, level) => {
   if (level === 1) {
     const n = randInt(rng, 2, 7);
     return { id: id(), kind: "input", prompt: `Vad är ${n}²?`, answer: String(n * n) };
@@ -932,7 +940,7 @@ const potenser: Generator = (rng, level) => {
   };
 };
 
-const pythagoras: Generator = (rng, level) => {
+const pythagoras: InternalGenerator = (rng, level) => {
   const triples: [number, number, number][] = [
     [3, 4, 5],
     [5, 12, 13],
@@ -966,7 +974,7 @@ const pythagoras: Generator = (rng, level) => {
   };
 };
 
-const funktioner: Generator = (rng, level) => {
+const funktioner: InternalGenerator = (rng, level) => {
   if (level === 1) {
     // y = x + m
     const m = randInt(rng, 1, 10);
@@ -1015,7 +1023,7 @@ const funktioner: Generator = (rng, level) => {
   };
 };
 
-const procentRanta: Generator = (rng, level) => {
+const procentRanta: InternalGenerator = (rng, level) => {
   if (level === 1) {
     const base = pick(rng, [100, 200, 400, 1000]);
     const pct = pick(rng, [10, 25, 50]);
@@ -1059,7 +1067,7 @@ const procentRanta: Generator = (rng, level) => {
   };
 };
 
-const sannolikhet: Generator = (rng, level) => {
+const sannolikhet: InternalGenerator = (rng, level) => {
   if (level === 1) {
     if (rng() < 0.5) {
       return {
@@ -1107,7 +1115,7 @@ const sannolikhet: Generator = (rng, level) => {
   };
 };
 
-const geometriVolym: Generator = (rng, level) => {
+const geometriVolym: InternalGenerator = (rng, level) => {
   if (level === 1) {
     const s = randInt(rng, 2, 6);
     return {
@@ -1150,7 +1158,7 @@ const geometriVolym: Generator = (rng, level) => {
   };
 };
 
-const skalaOchProportion: Generator = (rng, level) => {
+const skalaOchProportion: InternalGenerator = (rng, level) => {
   if (level === 1) {
     const scale = pick(rng, [100, 200, 500]);
     const cmOnMap = randInt(rng, 2, 8);
@@ -1200,7 +1208,7 @@ const skalaOchProportion: Generator = (rng, level) => {
 
 // ---------- Nya ämnen ----------
 
-const tredimFormer: Generator = (rng, level) => {
+const tredimFormer: InternalGenerator = (rng, level) => {
   const all: { sides: number; namn: string; ekv?: number }[] = [
     { sides: 4, namn: "rätblock" },
     { sides: 6, namn: "kub" },
@@ -1239,7 +1247,7 @@ const tredimFormer: Generator = (rng, level) => {
   };
 };
 
-const symmetri: Generator = (rng, level) => {
+const symmetri: InternalGenerator = (rng, level) => {
   // Föremål med känt antal symmetrilinjer
   const items = byLevel<{ namn: string; lines: number }[]>(level, [
     [
@@ -1293,7 +1301,7 @@ const symmetri: Generator = (rng, level) => {
   };
 };
 
-const diagram: Generator = (rng, level) => {
+const diagram: InternalGenerator = (rng, level) => {
   // Mini stapeldiagram: ge 3-5 staplar och fråga om en
   const n = byLevel(level, [3, 4, 4, 5]);
   const max = byLevel(level, [10, 15, 25, 50]);
@@ -1330,7 +1338,7 @@ const diagram: Generator = (rng, level) => {
   };
 };
 
-const negativaTal: Generator = (rng, level) => {
+const negativaTal: InternalGenerator = (rng, level) => {
   if (level === 1) {
     // Temperatur — vilket är kallast
     const a = randInt(rng, -10, 5);
@@ -1386,7 +1394,7 @@ const negativaTal: Generator = (rng, level) => {
   };
 };
 
-const koordinatsystem: Generator = (rng, level) => {
+const koordinatsystem: InternalGenerator = (rng, level) => {
   const range = byLevel<[number, number]>(level, [
     [0, 5],
     [0, 10],
@@ -1412,7 +1420,7 @@ const koordinatsystem: Generator = (rng, level) => {
   };
 };
 
-const vinklar: Generator = (rng, level) => {
+const vinklar: InternalGenerator = (rng, level) => {
   if (level === 1) {
     const types: { angle: number; namn: string }[] = [
       { angle: randInt(rng, 10, 89), namn: "spetsig" },
@@ -1462,7 +1470,7 @@ const vinklar: Generator = (rng, level) => {
   };
 };
 
-const cirkeln: Generator = (rng, level) => {
+const cirkeln: InternalGenerator = (rng, level) => {
   // Använd π ≈ 3,14
   if (level === 1) {
     const r = randInt(rng, 2, 8);
@@ -1507,7 +1515,7 @@ const cirkeln: Generator = (rng, level) => {
   };
 };
 
-const vetenskapligNotation: Generator = (rng, level) => {
+const vetenskapligNotation: InternalGenerator = (rng, level) => {
   if (level === 1) {
     // 10^n värde
     const n = randInt(rng, 2, 6);
@@ -1556,7 +1564,7 @@ const vetenskapligNotation: Generator = (rng, level) => {
   };
 };
 
-const likformighet: Generator = (rng, level) => {
+const likformighet: InternalGenerator = (rng, level) => {
   if (level === 1) {
     // Skala 2x
     const a = randInt(rng, 2, 8);
@@ -1606,7 +1614,7 @@ const likformighet: Generator = (rng, level) => {
 // REGISTRY
 // ============================================================
 
-export const GENERATORS: Record<TopicId, Generator> = {
+const INTERNAL_GENERATORS: Record<TopicId, InternalGenerator> = {
   // Lågstadiet (12)
   talraknemastare,
   talkompisar,
@@ -1648,9 +1656,18 @@ export const GENERATORS: Record<TopicId, Generator> = {
   "vetenskaplig-notation": vetenskapligNotation,
 };
 
+/** Publik `Generator` (rng, grade, master) — wrappar interna level-baserade generatorer. */
+export const GENERATORS: Record<TopicId, Generator> = Object.fromEntries(
+  (Object.keys(INTERNAL_GENERATORS) as TopicId[]).map((tid) => [
+    tid,
+    ((rng, grade, master) => INTERNAL_GENERATORS[tid](rng, effectiveLevel(grade, master))) as Generator,
+  ]),
+) as Record<TopicId, Generator>;
+
 export const generateSession = (
   topicId: TopicId,
-  level: Level,
+  grade: Grade,
+  master: boolean,
   count: number = 10,
 ): Exercise[] => {
   const gen = GENERATORS[topicId];
@@ -1660,7 +1677,7 @@ export const generateSession = (
   let guard = 0;
   while (out.length < count && guard < count * 10) {
     guard++;
-    const ex = gen(Math.random, level);
+    const ex = gen(Math.random, grade, master);
     const key = ex.visual
       ? `${ex.prompt}|${JSON.stringify(ex.visual)}`
       : `${ex.prompt}|${ex.answer}`;

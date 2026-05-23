@@ -1,25 +1,32 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { STAGES, STAGE_ORDER, topicsForStage } from "@/lib/curriculum";
-import type { Stage } from "@/lib/types";
+import { topicsForGradeAll, STAGES } from "@/lib/curriculum";
+import { ALL_GRADES, stageForGrade, type Grade } from "@/lib/types";
 import { StageBody } from "@/components/StageBody";
-import { StageTopicsGrid } from "@/components/StageTopicsGrid";
 import { ProfileBadge } from "@/components/ProfileBadge";
+import { GradeTopicsGrid } from "@/components/GradeTopicsGrid";
 
 export function generateStaticParams() {
-  return STAGE_ORDER.map((stage) => ({ stage }));
+  return ALL_GRADES.map((g) => ({ grade: String(g) }));
 }
 
-export default async function StagePage({ params }: PageProps<"/[stage]">) {
-  const { stage } = await params;
-  if (!STAGE_ORDER.includes(stage as Stage)) notFound();
-  const s = STAGES[stage as Stage];
-  const topics = topicsForStage(stage as Stage);
+const STAGE_TITLE = {
+  lagstadiet: "Lågstadiet",
+  mellanstadiet: "Mellanstadiet",
+  hogstadiet: "Högstadiet",
+} as const;
+
+export default async function GradePage({ params }: PageProps<"/[grade]">) {
+  const { grade } = await params;
+  const g = Number(grade) as Grade;
+  if (!ALL_GRADES.includes(g)) notFound();
+  const stage = stageForGrade(g);
+  const topics = topicsForGradeAll(g);
   const isDark = stage === "hogstadiet";
 
   return (
     <main className="flex-1 min-h-screen">
-      <StageBody stage={stage as Stage} />
+      <StageBody stage={stage} />
 
       <header className="max-w-6xl mx-auto px-6 pt-8 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 font-bold text-lg">
@@ -43,21 +50,22 @@ export default async function StagePage({ params }: PageProps<"/[stage]">) {
             className="text-4xl md:text-5xl font-black"
             style={{ fontFamily: "var(--font-display)" }}
           >
-            {s.title}
+            Årskurs {g}
           </h1>
           <span className={`text-sm font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-            Årskurs {s.grades}
+            {STAGE_TITLE[stage]} • {STAGES[stage].subtitle}
           </span>
         </div>
         <p className={`mt-3 max-w-2xl ${isDark ? "text-slate-300" : "text-slate-700"}`}>
-          {s.description}
+          Här är ämnena du tränar på i åk {g}. Klara ett ämne med tre stjärnor och prova sen
+          Mästar-läget för att tjäna en trofé.
         </p>
       </section>
 
-      <StageTopicsGrid stage={stage as Stage} topics={topics} />
+      <GradeTopicsGrid grade={g} topics={topics} />
 
       <footer className={`mt-20 py-8 text-center text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-        Tips: Klicka på ett område för att börja träna.
+        Klicka på ett ämne för att börja träna.
       </footer>
     </main>
   );
