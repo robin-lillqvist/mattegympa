@@ -26,7 +26,7 @@ export function ProfileBadge() {
   };
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3 text-slate-900">
       <div className="hidden sm:flex items-center gap-3 text-sm">
         <Badge label="XP" value={state.xp} icon="⭐" />
         <Badge label="Streak" value={`${state.streak.count}d`} icon="🔥" />
@@ -42,21 +42,23 @@ export function ProfileBadge() {
               if (e.key === "Escape") setEditing(false);
             }}
             placeholder="Ditt namn"
-            className="bg-white border border-zinc-300 rounded-full px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400"
+            className="bg-white border border-zinc-300 text-slate-900 placeholder:text-slate-400 rounded-full px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400"
           />
-          <button onClick={save} className="text-xs font-semibold text-rose-600">
+          <button onClick={save} className="text-xs font-semibold text-rose-500">
             Spara
           </button>
         </div>
       ) : (
         <button
           onClick={() => setEditing(true)}
-          className="flex items-center gap-2 bg-white border border-zinc-200 rounded-full pl-1 pr-3 py-1 text-sm font-medium hover:shadow-md transition-shadow"
+          className="flex items-center gap-2 bg-white border border-zinc-200 text-slate-900 rounded-full pl-1 pr-3 py-1 text-sm font-medium hover:shadow-md transition-shadow"
         >
           <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-amber-400 to-rose-500 text-white text-xs font-bold">
             {(state.name || "?").slice(0, 1).toUpperCase()}
           </span>
-          {state.name || "Lägg till namn"}
+          <span className={state.name ? "" : "text-slate-500"}>
+            {state.name || "Lägg till namn"}
+          </span>
         </button>
       )}
     </div>
@@ -65,7 +67,7 @@ export function ProfileBadge() {
 
 function Badge({ label, value, icon }: { label: string; value: string | number; icon: string }) {
   return (
-    <div className="flex items-center gap-1.5 bg-white border border-zinc-200 rounded-full px-3 py-1">
+    <div className="flex items-center gap-1.5 bg-white border border-zinc-200 rounded-full px-3 py-1 text-slate-900">
       <span aria-hidden>{icon}</span>
       <span className="font-bold">{value}</span>
       <span className="text-slate-500 text-xs">{label}</span>

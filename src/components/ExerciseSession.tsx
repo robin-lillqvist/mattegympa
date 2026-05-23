@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import type { Exercise, Stage, TopicId } from "@/lib/types";
+import type { Exercise, Level, Stage, TopicId } from "@/lib/types";
 import { generateSession, normalizeAnswer } from "@/lib/generators";
 import {
   applySessionResult,
@@ -11,17 +11,26 @@ import {
   type ProgressState,
 } from "@/lib/progress";
 import { Confetti } from "./Confetti";
+import { ClockFace } from "./ClockFace";
 
 const SESSION_LENGTH = 10;
 
 type Status = "idle" | "correct" | "wrong";
 
-export function ExerciseSession({ topicId, stage }: { topicId: TopicId; stage: Stage }) {
+export function ExerciseSession({
+  topicId,
+  stage,
+  level,
+}: {
+  topicId: TopicId;
+  stage: Stage;
+  level: Level;
+}) {
   const [seed, setSeed] = useState(0);
   const exercises = useMemo<Exercise[]>(
-    () => generateSession(topicId, SESSION_LENGTH),
+    () => generateSession(topicId, level, SESSION_LENGTH),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [topicId, seed],
+    [topicId, level, seed],
   );
   const [idx, setIdx] = useState(0);
   const [value, setValue] = useState("");
@@ -63,7 +72,9 @@ export function ExerciseSession({ topicId, stage }: { topicId: TopicId; stage: S
     if (status !== "idle" || !current) return;
     const userVal = (chosen ?? value).trim();
     if (!userVal) return;
-    const ok = normalizeAnswer(userVal) === normalizeAnswer(current.answer);
+    const userNorm = normalizeAnswer(userVal);
+    const candidates = [current.answer, ...(current.accept ?? [])];
+    const ok = candidates.some((c) => normalizeAnswer(c) === userNorm);
     if (ok) {
       setStatus("correct");
       setCorrectCount((c) => c + 1);
@@ -175,6 +186,16 @@ export function ExerciseSession({ topicId, stage }: { topicId: TopicId; stage: S
         key={current.id}
         className={`mt-6 card p-8 pop ${isDark ? "!bg-slate-900/70 !border-slate-700" : ""} ${status === "wrong" ? "shake" : ""}`}
       >
+        {current.visual?.kind === "clock" && (
+          <div className="flex justify-center mb-6">
+            <ClockFace
+              hours={current.visual.hours}
+              minutes={current.visual.minutes}
+              size={220}
+              dark={isDark}
+            />
+          </div>
+        )}
         <p
           className="text-2xl md:text-3xl font-bold leading-snug"
           style={{ fontFamily: stage === "lagstadiet" ? "var(--font-display)" : undefined }}
@@ -253,16 +274,28 @@ export function ExerciseSession({ topicId, stage }: { topicId: TopicId; stage: S
         </div>
 
         {status === "correct" && (
-          <div className="mt-5 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700">
+          <div
+            className={`mt-5 p-4 rounded-xl border ${
+              isDark
+                ? "bg-emerald-500/15 border-emerald-400/40 text-emerald-200"
+                : "bg-emerald-500/10 border-emerald-500/30 text-emerald-800"
+            }`}
+          >
             <strong>Rätt!</strong>{" "}
-            {current.explanation && <span className="opacity-80">{current.explanation}</span>}
+            {current.explanation && <span className="opacity-90">{current.explanation}</span>}
           </div>
         )}
         {status === "wrong" && (
-          <div className="mt-5 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-700">
+          <div
+            className={`mt-5 p-4 rounded-xl border ${
+              isDark
+                ? "bg-rose-500/15 border-rose-400/40 text-rose-200"
+                : "bg-rose-500/10 border-rose-500/30 text-rose-800"
+            }`}
+          >
             <strong>Nästan!</strong> Rätt svar:{" "}
             <span className="font-mono font-bold">{current.answer}</span>
-            {current.explanation && <div className="opacity-80 mt-1">{current.explanation}</div>}
+            {current.explanation && <div className="opacity-90 mt-1">{current.explanation}</div>}
           </div>
         )}
 

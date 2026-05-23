@@ -42,7 +42,7 @@ export function StageTopicsGrid({ stage, topics }: { stage: Stage; topics: Topic
   const style = TILE_STYLES[stage];
 
   return (
-    <section className="max-w-6xl mx-auto px-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+    <section className="max-w-6xl mx-auto px-6 grid gap-5 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
       {topics.map((t, idx) => {
         const tp = state?.topics[t.id];
         const stars = tp?.stars ?? 0;
