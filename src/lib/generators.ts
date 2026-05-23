@@ -11,26 +11,17 @@ const byLevel = <T>(level: Level, buckets: [T, T, T, T]): T => buckets[level - 1
 // ============================================================
 
 const talraknemastare: Generator = (rng, level) => {
-  const max = byLevel(level, [20, 50, 100, 200]);
-  const min = byLevel(level, [1, 1, 10, 10]);
-  const kind = randInt(rng, 0, level >= 3 ? 2 : 1);
+  // Strictly non-overlapping ranges + different concepts per level.
+  const range = byLevel<[number, number]>(level, [
+    [1, 20], // L1: små tal, "före/efter"
+    [21, 100], // L2: större tal, "före/efter" + största
+    [101, 999], // L3: tresiffriga, position
+    [1000, 9999], // L4: fyrsiffriga, position
+  ]);
 
-  if (kind === 0) {
-    // Vilket tal är störst?
-    const a = randInt(rng, min, max);
-    let b = randInt(rng, min, max);
-    while (b === a) b = randInt(rng, min, max);
-    const correct = Math.max(a, b);
-    return {
-      id: id(),
-      kind: "multiple-choice",
-      prompt: `Vilket tal är störst?`,
-      choices: shuffle(rng, [a, b]).map(String),
-      answer: String(correct),
-    };
-  }
-  if (kind === 1) {
-    const n = randInt(rng, Math.max(min, 2), max - 1);
+  if (level === 1) {
+    // Före/efter på små tal
+    const n = randInt(rng, range[0] + 1, range[1] - 1);
     const before = rng() < 0.5;
     return {
       id: id(),
@@ -41,11 +32,34 @@ const talraknemastare: Generator = (rng, level) => {
       answer: String(before ? n - 1 : n + 1),
     };
   }
-  // Position questions (level 3+)
-  const n = randInt(rng, level === 4 ? 100 : 11, max);
-  const positions = ["entalen", "tiotalen", "hundratalen"];
+  if (level === 2) {
+    // Största tal eller udda/jämn
+    if (rng() < 0.5) {
+      const a = randInt(rng, range[0], range[1]);
+      let b = randInt(rng, range[0], range[1]);
+      while (b === a) b = randInt(rng, range[0], range[1]);
+      return {
+        id: id(),
+        kind: "multiple-choice",
+        prompt: `Vilket tal är störst?`,
+        choices: shuffle(rng, [a, b]).map(String),
+        answer: String(Math.max(a, b)),
+      };
+    }
+    const n = randInt(rng, range[0], range[1]);
+    return {
+      id: id(),
+      kind: "multiple-choice",
+      prompt: `Är ${n} jämnt eller udda?`,
+      choices: shuffle(rng, ["jämnt", "udda"]),
+      answer: n % 2 === 0 ? "jämnt" : "udda",
+    };
+  }
+  // L3 & L4: positionssystem på 3- respektive 4-siffriga tal
+  const positions = ["entalen", "tiotalen", "hundratalen", "tusentalen"];
+  const n = randInt(rng, range[0], range[1]);
   const digits = String(n).split("").reverse();
-  const idx = randInt(rng, 0, Math.min(digits.length - 1, level === 4 ? 2 : 1));
+  const idx = randInt(rng, 0, digits.length - 1);
   return {
     id: id(),
     kind: "input",
@@ -82,18 +96,31 @@ const talkompisar: Generator = (rng, level) => {
 };
 
 const additionSub100: Generator = (rng, level) => {
-  // L1: 1-10+1-10, L2: 1-20+1-20, L3: 1-50+1-50, L4: 1-99+1-99
-  const max = byLevel(level, [10, 20, 50, 99]);
-  const a = randInt(rng, 1, max);
-  const b = randInt(rng, 1, max);
+  // Konceptuell progression:
+  // L1: ensiffrigt + ensiffrigt, sum ≤ 10 (inga tiotalsövergångar)
+  // L2: ensiffrigt + ensiffrigt med tiotalsövergång (sum 11–18)
+  // L3: tvåsiffrigt + ensiffrigt eller tvåsiffrigt utan hundratals-övergång
+  // L4: tvåsiffrigt + tvåsiffrigt med möjlig övergång över 100
+  let a: number;
+  let b: number;
+  if (level === 1) {
+    a = randInt(rng, 1, 9);
+    b = randInt(rng, 1, 10 - a); // sum ≤ 10
+  } else if (level === 2) {
+    a = randInt(rng, 2, 9);
+    b = randInt(rng, 11 - a, 9); // sum 11–18, måste bridge ten
+    if (b < 1) b = 9 - a + 2;
+  } else if (level === 3) {
+    a = randInt(rng, 11, 50);
+    b = randInt(rng, 2, 49);
+    if (a + b > 99) b = 99 - a;
+  } else {
+    a = randInt(rng, 25, 90);
+    b = randInt(rng, 25, 90); // sum kan gå över 100
+  }
   const sum = a + b;
   if (rng() < 0.5) {
-    return {
-      id: id(),
-      kind: "input",
-      prompt: `${a} + ${b} = ?`,
-      answer: String(sum),
-    };
+    return { id: id(), kind: "input", prompt: `${a} + ${b} = ?`, answer: String(sum) };
   }
   return {
     id: id(),
@@ -105,19 +132,38 @@ const additionSub100: Generator = (rng, level) => {
 };
 
 const subtraktionSub100: Generator = (rng, level) => {
-  const max = byLevel(level, [20, 50, 100, 200]);
-  const minA = byLevel(level, [5, 10, 20, 50]);
-  const a = randInt(rng, minA, max);
-  const minB = byLevel(level, [2, 3, 5, 10]); // ensure non-trivial
-  const b = randInt(rng, minB, a - 1);
+  // Konceptuell progression:
+  // L1: ensiffrigt − ensiffrigt, resultat 1–8 (ingen lån)
+  // L2: tvåsiffrigt − ensiffrigt, ingen lån (28 − 5)
+  // L3: tvåsiffrigt − tvåsiffrigt med lån (52 − 37)
+  // L4: tresiffrigt − tvåsiffrigt eller tresiffrigt, med lån
+  let a: number;
+  let b: number;
+  if (level === 1) {
+    a = randInt(rng, 3, 9);
+    b = randInt(rng, 1, a - 1);
+  } else if (level === 2) {
+    const tens = randInt(rng, 1, 9);
+    const ones = randInt(rng, 3, 9);
+    a = tens * 10 + ones;
+    b = randInt(rng, 1, ones); // ingen lån — ensiffrigt mindre än entalen i a
+  } else if (level === 3) {
+    a = randInt(rng, 30, 99);
+    b = randInt(rng, 12, a - 5);
+    // tvinga lån: tiotal-entalen i a ska vara mindre än entalen i b
+    if (a % 10 >= b % 10) {
+      const tensA = Math.floor(a / 10);
+      const onesA = (b % 10) - 1 < 0 ? 0 : (b % 10) - 1;
+      a = tensA * 10 + onesA;
+      if (a - b < 1) a = b + 7;
+    }
+  } else {
+    a = randInt(rng, 200, 900);
+    b = randInt(rng, 50, a - 10);
+  }
   const diff = a - b;
   if (rng() < 0.5) {
-    return {
-      id: id(),
-      kind: "input",
-      prompt: `${a} − ${b} = ?`,
-      answer: String(diff),
-    };
+    return { id: id(), kind: "input", prompt: `${a} − ${b} = ?`, answer: String(diff) };
   }
   return {
     id: id(),
@@ -129,21 +175,44 @@ const subtraktionSub100: Generator = (rng, level) => {
 };
 
 const talmonster: Generator = (rng, level) => {
-  const stepOptions = byLevel<number[]>(level, [
-    [2, 5, 10],
-    [3, 4, 6],
-    [7, 8, 9, 11],
-    [12, 15, 25, -2, -5],
-  ]);
-  const step = pick(rng, stepOptions);
-  const start = randInt(rng, 1, 20);
+  // L1: hoppa 2 eller 5 från små starttal
+  // L2: hoppa 10 från godtyckliga, eller udda steg som 3
+  // L3: större steg (7, 8, 9), kan börja högre
+  // L4: avtagande serier eller multiplikativa
+  if (level <= 3) {
+    const stepOptions = byLevel<number[]>(level, [[2, 5], [3, 10], [7, 8, 9, 11], [0]]);
+    const step = pick(rng, stepOptions);
+    const start = byLevel(level, [1, 5, 20, 30]) + randInt(rng, 0, 10);
+    const seq = [start, start + step, start + 2 * step, start + 3 * step];
+    return {
+      id: id(),
+      kind: "input",
+      prompt: `Vad är nästa tal? ${seq.join(", ")}, ?`,
+      answer: String(start + 4 * step),
+      explanation: `Talen ökar med ${step} varje gång.`,
+    };
+  }
+  // L4: dubbleringar (multiplikativt) eller minskande
+  if (rng() < 0.5) {
+    const start = pick(rng, [1, 2, 3]);
+    const seq = [start, start * 2, start * 4, start * 8];
+    return {
+      id: id(),
+      kind: "input",
+      prompt: `Vad är nästa tal? ${seq.join(", ")}, ?`,
+      answer: String(start * 16),
+      explanation: `Talen dubbleras varje gång.`,
+    };
+  }
+  const step = pick(rng, [-3, -5, -7]);
+  const start = randInt(rng, 50, 99);
   const seq = [start, start + step, start + 2 * step, start + 3 * step];
   return {
     id: id(),
     kind: "input",
     prompt: `Vad är nästa tal? ${seq.join(", ")}, ?`,
     answer: String(start + 4 * step),
-    explanation: `Talen ${step > 0 ? "ökar" : "minskar"} med ${Math.abs(step)} varje gång.`,
+    explanation: `Talen minskar med ${Math.abs(step)} varje gång.`,
   };
 };
 
@@ -176,10 +245,10 @@ const describeTime = (h: number, m: number): string => {
 
 const klockan: Generator = (rng, level) => {
   const minuteBuckets = byLevel<number[]>(level, [
-    [0, 0, 0, 0, 30], // L1: hela timmar, lite halvtimme
-    [0, 15, 30, 45], // L2: hela, halvor, kvartar
-    [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55], // L3: alla 5-min
-    [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55], // L4: alla 5-min + word problems
+    [0], // L1: bara hela timmar
+    [15, 30, 45], // L2: bara halvor och kvartar (inga hela timmar)
+    [5, 10, 20, 25, 35, 40, 50, 55], // L3: bara udda 5-min (ej hela/halv/kvart)
+    [5, 10, 20, 25, 35, 40, 50, 55], // L4: udda 5-min + 24h-räkneuppgifter
   ]);
   // L4 mixes in word problems with 24h time
   if (level === 4 && rng() < 0.35) {
@@ -232,21 +301,19 @@ const klockan: Generator = (rng, level) => {
 };
 
 const former: Generator = (rng, level) => {
-  const all: { sides: number; namn: string }[] = [
+  // L1: bara triangel + fyrhörning, fråga "hur många hörn?"
+  // L2: bara femhörning + sexhörning, fråga "hur många hörn?"
+  // L3: namn-från-hörn, alla 3–6 hörn (omvänt håll)
+  // L4: 8-hörningar och egenskaper (sidor som är lika långa, räta vinklar)
+  const shapes: { sides: number; namn: string }[] = [
     { sides: 3, namn: "triangel" },
     { sides: 4, namn: "fyrhörning" },
     { sides: 5, namn: "femhörning" },
     { sides: 6, namn: "sexhörning" },
     { sides: 8, namn: "åttahörning" },
   ];
-  const allowed = byLevel(level, [
-    all.slice(0, 2),
-    all.slice(0, 3),
-    all.slice(0, 4),
-    all,
-  ]);
-  if (rng() < 0.5) {
-    const s = pick(rng, allowed);
+  if (level === 1) {
+    const s = pick(rng, shapes.slice(0, 2));
     return {
       id: id(),
       kind: "multiple-choice",
@@ -255,18 +322,60 @@ const former: Generator = (rng, level) => {
       answer: String(s.sides),
     };
   }
-  const correct = pick(rng, allowed);
-  const distractors = allowed.filter((s) => s.sides !== correct.sides);
-  const opts = shuffle(rng, [
-    correct.namn,
-    ...shuffle(rng, distractors).slice(0, 3).map((d) => d.namn),
-  ]);
+  if (level === 2) {
+    const s = pick(rng, shapes.slice(2, 4));
+    return {
+      id: id(),
+      kind: "multiple-choice",
+      prompt: `Hur många hörn har en ${s.namn}?`,
+      choices: shuffle(rng, [s.sides, s.sides + 1, s.sides - 1, s.sides + 2]).map(String),
+      answer: String(s.sides),
+    };
+  }
+  if (level === 3) {
+    const correct = pick(rng, shapes.slice(0, 4));
+    const distractors = shapes.filter((s) => s.sides !== correct.sides);
+    return {
+      id: id(),
+      kind: "multiple-choice",
+      prompt: `Vilken form har ${correct.sides} hörn?`,
+      choices: shuffle(rng, [
+        correct.namn,
+        ...shuffle(rng, distractors).slice(0, 3).map((d) => d.namn),
+      ]),
+      answer: correct.namn,
+    };
+  }
+  // L4: egenskaper
+  const props: { fråga: string; svar: string; alt: string[] }[] = [
+    {
+      fråga: "Vilken form har 4 räta vinklar och 4 lika långa sidor?",
+      svar: "kvadrat",
+      alt: ["rektangel", "romb", "parallellogram"],
+    },
+    {
+      fråga: "Vilken form har 3 lika långa sidor?",
+      svar: "liksidig triangel",
+      alt: ["rätvinklig triangel", "fyrhörning", "rektangel"],
+    },
+    {
+      fråga: "Hur många hörn har en åttahörning?",
+      svar: "8",
+      alt: ["6", "7", "10"],
+    },
+    {
+      fråga: "Vilken form har två par parallella sidor och 4 räta vinklar?",
+      svar: "rektangel",
+      alt: ["kvadrat", "romb", "parallellogram"],
+    },
+  ];
+  const p = pick(rng, props);
   return {
     id: id(),
     kind: "multiple-choice",
-    prompt: `Vilken form har ${correct.sides} hörn?`,
-    choices: opts,
-    answer: correct.namn,
+    prompt: p.fråga,
+    choices: shuffle(rng, [p.svar, ...p.alt]),
+    answer: p.svar,
   };
 };
 
@@ -339,14 +448,18 @@ const halvorOchDelar: Generator = (rng, level) => {
 // ============================================================
 
 const multiplikationstabellen: Generator = (rng, level) => {
+  // L1: enkla tabeller (2, 5, 10) — ofta automatiserade tidigt
+  // L2: medel-tabeller (3, 4, 6)
+  // L3: svåra tabeller (7, 8, 9)
+  // L4: utöver tabellen: 11 och 12, samt blandade tvåsiffriga
   const tables = byLevel<number[]>(level, [
     [2, 5, 10],
     [3, 4, 6],
     [7, 8, 9],
-    [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    [11, 12, 13, 14, 15],
   ]);
   const a = pick(rng, tables);
-  const b = randInt(rng, 2, level === 4 ? 12 : 10);
+  const b = level === 4 ? randInt(rng, 4, 12) : randInt(rng, 2, 10);
   const ans = a * b;
   if (rng() < 0.5) {
     return {
@@ -366,26 +479,60 @@ const multiplikationstabellen: Generator = (rng, level) => {
 };
 
 const division: Generator = (rng, level) => {
-  const bMax = byLevel(level, [5, 10, 12, 12]);
-  const qMax = byLevel(level, [5, 10, 12, 20]);
-  const b = randInt(rng, 2, bMax);
-  const q = randInt(rng, 2, qMax);
-  const withRest = level >= 2 && rng() < (level === 2 ? 0.2 : 0.35);
-  const rest = withRest ? randInt(rng, 1, b - 1) : 0;
-  const a = b * q + rest;
-  if (withRest) {
+  // L1: 2, 5, 10-tabellen baklänges, jämn division (a ≤ 50)
+  // L2: 3, 4, 6-tabellen baklänges, jämn division
+  // L3: jämn division med 7, 8, 9 + alltid med rest
+  // L4: större tal, tvåsiffriga divisorer
+  if (level === 1) {
+    const b = pick(rng, [2, 5, 10]);
+    const q = randInt(rng, 2, 10);
     return {
       id: id(),
       kind: "input",
-      prompt: `${a} / ${b} — vad blir resten?`,
-      answer: String(rest),
+      prompt: `${b * q} / ${b} = ?`,
+      answer: String(q),
     };
   }
+  if (level === 2) {
+    const b = pick(rng, [3, 4, 6]);
+    const q = randInt(rng, 3, 10);
+    return {
+      id: id(),
+      kind: "input",
+      prompt: `${b * q} / ${b} = ?`,
+      answer: String(q),
+    };
+  }
+  if (level === 3) {
+    const b = pick(rng, [7, 8, 9]);
+    const q = randInt(rng, 3, 12);
+    const rest = randInt(rng, 1, b - 1);
+    if (rng() < 0.5) {
+      return {
+        id: id(),
+        kind: "input",
+        prompt: `${b * q + rest} / ${b} — vad blir resten?`,
+        answer: String(rest),
+      };
+    }
+    return {
+      id: id(),
+      kind: "input",
+      prompt: `${b * q} / ${b} = ?`,
+      answer: String(q),
+    };
+  }
+  // L4: större tal
+  const b = randInt(rng, 11, 20);
+  const q = randInt(rng, 5, 25);
+  const withRest = rng() < 0.4;
+  const rest = withRest ? randInt(rng, 1, b - 1) : 0;
+  const a = b * q + rest;
   return {
     id: id(),
     kind: "input",
-    prompt: `${a} / ${b} = ?`,
-    answer: String(q),
+    prompt: withRest ? `${a} / ${b} — vad blir resten?` : `${a} / ${b} = ?`,
+    answer: String(withRest ? rest : q),
   };
 };
 
@@ -499,26 +646,49 @@ const brak: Generator = (rng, level) => {
 };
 
 const procent: Generator = (rng, level) => {
-  const baseSet = byLevel<number[]>(level, [
-    [100, 200, 400],
-    [50, 80, 100, 200, 400],
-    [60, 75, 120, 250, 500],
-    [40, 90, 160, 350, 800],
-  ]);
-  const pctSet = byLevel<number[]>(level, [
-    [50, 100],
-    [10, 25, 50, 75],
-    [5, 15, 20, 30],
-    [5, 12, 35, 45, 80],
-  ]);
-  const base = pick(rng, baseSet);
-  const pct = pick(rng, pctSet);
-  const ans = (base * pct) / 100;
+  // L1: bara 50% och 100% av "runda" tal (100, 200, 400 ...)
+  // L2: 10% och 25% av runda tal
+  // L3: andra procent (15%, 20%, 30%) av runda tal
+  // L4: omvänd — "Vad är x procent av y?" där svaret kräver fler steg, eller del → procent
+  if (level === 1) {
+    const base = pick(rng, [100, 200, 400, 1000]);
+    const pct = pick(rng, [50, 100]);
+    return {
+      id: id(),
+      kind: "input",
+      prompt: `Hur mycket är ${pct}% av ${base}?`,
+      answer: String((base * pct) / 100),
+    };
+  }
+  if (level === 2) {
+    const base = pick(rng, [40, 80, 120, 200, 400, 800]);
+    const pct = pick(rng, [10, 25]);
+    return {
+      id: id(),
+      kind: "input",
+      prompt: `Hur mycket är ${pct}% av ${base}?`,
+      answer: String((base * pct) / 100),
+    };
+  }
+  if (level === 3) {
+    const pct = pick(rng, [5, 15, 20, 30, 75]);
+    const base = pick(rng, [60, 100, 200, 400, 800]);
+    return {
+      id: id(),
+      kind: "input",
+      prompt: `Hur mycket är ${pct}% av ${base}?`,
+      answer: String((base * pct) / 100),
+    };
+  }
+  // L4: omvänd — del → procent
+  const pct = pick(rng, [5, 12, 18, 35, 45, 65]);
+  const base = pick(rng, [100, 200, 400, 1000]);
+  const part = (base * pct) / 100;
   return {
     id: id(),
     kind: "input",
-    prompt: `Hur mycket är ${pct}% av ${base}?`,
-    answer: String(ans),
+    prompt: `${part} är hur många procent av ${base}? (svara utan %-tecken)`,
+    answer: String(pct),
   };
 };
 
