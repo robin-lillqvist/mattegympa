@@ -3,10 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "env -u MallocStackLogging next dev --turbopack",
     "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+    "start": "env -u MallocStackLogging next start",
+    "lint": "eslint",
+    "clean": "rm -rf .next",
+    "kill": "pkill -9 -f 'next-server|next dev|next build|next start|turbopack' 2>/dev/null; lsof -ti:3000 2>/dev/null | xargs -r kill -9; echo 'done'"
   },
   "dependencies": {
     "next": "16.2.6",

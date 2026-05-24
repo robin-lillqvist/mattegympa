@@ -2,6 +2,22 @@ export type Stage = "lagstadiet" | "mellanstadiet" | "hogstadiet";
 
 export type Level = 1 | 2 | 3 | 4;
 
+export type Grade = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+
+export const GRADES_BY_STAGE: Record<Stage, Grade[]> = {
+  lagstadiet: [1, 2, 3],
+  mellanstadiet: [4, 5, 6],
+  hogstadiet: [7, 8, 9],
+};
+
+export const ALL_GRADES: Grade[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+export const stageForGrade = (g: Grade): Stage => {
+  if (g <= 3) return "lagstadiet";
+  if (g <= 6) return "mellanstadiet";
+  return "hogstadiet";
+};
+
 export const LEVELS: { id: Level; title: string; blurb: string; emoji: string }[] = [
   { id: 1, title: "Lätt", emoji: "🌱", blurb: "Börja här — lugnt och enkelt." },
   { id: 2, title: "Medel", emoji: "🌿", blurb: "Lite tuffare — träna mer." },
@@ -69,11 +85,28 @@ export type Topic = {
   skill: string;
   /** Difficulty 1-5 within stage */
   level: number;
+  /** Den årskurs där ämnet typiskt introduceras (per LEROPLAN.md). */
+  introducedAt: Grade;
+  /** Alla årskurser där ämnet är aktivt innehåll. */
+  grades: Grade[];
 };
 
 export type ExerciseKind = "input" | "multiple-choice";
 
-export type Visual = { kind: "clock"; hours: number; minutes: number };
+export type Visual =
+  | { kind: "clock"; hours: number; minutes: number }
+  | {
+      kind: "bar-chart";
+      title?: string;
+      bars: { label: string; value: number }[];
+      /** Y-axis unit (e.g. "kr", "elever") */
+      unit?: string;
+    }
+  | {
+      kind: "pie-chart";
+      title?: string;
+      slices: { label: string; value: number }[];
+    };
 
 export type Exercise = {
   id: string;
@@ -93,4 +126,8 @@ export type Exercise = {
   visual?: Visual;
 };
 
-export type Generator = (rng: () => number, level: Level) => Exercise;
+export type Generator = (
+  rng: () => number,
+  grade: Grade,
+  master: boolean,
+) => Exercise;

@@ -2,16 +2,20 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import type { Exercise, Level, Stage, TopicId } from "@/lib/types";
+import type { Exercise, Grade, TopicId } from "@/lib/types";
+import { stageForGrade } from "@/lib/types";
 import { generateSession, normalizeAnswer } from "@/lib/generators";
 import {
   applySessionResult,
+  getTopicGradeProgress,
   loadProgress,
   saveProgress,
   type ProgressState,
 } from "@/lib/progress";
 import { Confetti } from "./Confetti";
 import { ClockFace } from "./ClockFace";
+import { BarChart } from "./BarChart";
+import { PieChart } from "./PieChart";
 
 const SESSION_LENGTH = 10;
 
@@ -19,18 +23,20 @@ type Status = "idle" | "correct" | "wrong";
 
 export function ExerciseSession({
   topicId,
-  stage,
-  level,
+  grade,
 }: {
   topicId: TopicId;
-  stage: Stage;
-  level: Level;
+  grade: Grade;
 }) {
+  const stage = stageForGrade(grade);
+  const isDark = stage === "hogstadiet";
+
+  const [master, setMaster] = useState(false);
   const [seed, setSeed] = useState(0);
   const exercises = useMemo<Exercise[]>(
-    () => generateSession(topicId, level, SESSION_LENGTH),
+    () => generateSession(topicId, grade, master, SESSION_LENGTH),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [topicId, level, seed],
+    [topicId, grade, master, seed],
   );
   const [idx, setIdx] = useState(0);
   const [value, setValue] = useState("");
@@ -44,8 +50,11 @@ export function ExerciseSession({
   const [progressState, setProgressState] = useState<ProgressState | null>(null);
   const savedRef = useRef(false);
 
-  const isDark = stage === "hogstadiet";
   const current = exercises[idx];
+  const existingProgress = progressState
+    ? getTopicGradeProgress(progressState, topicId, grade)
+    : null;
+  const hasNormalThreeStars = existingProgress?.stars === 3;
 
   const keyboardMode = (() => {
     if (!current || current.kind !== "input") return "text" as const;
@@ -64,17 +73,18 @@ export function ExerciseSession({
       savedRef.current = true;
       const next = applySessionResult(progressState, {
         topic: topicId,
+        grade,
+        master,
         correct: correctCount,
         total: exercises.length,
         bestStreak,
       });
       saveProgress(next);
       setProgressState(next);
-      if (correctCount === exercises.length) {
-        setConfettiTrigger((c) => c + 1);
-      }
+      const ratio = correctCount / exercises.length;
+      if (ratio >= 0.9) setConfettiTrigger((c) => c + 1);
     }
-  }, [done, progressState, correctCount, bestStreak, exercises.length, topicId]);
+  }, [done, progressState, correctCount, bestStreak, exercises.length, topicId, grade, master]);
 
   const submit = (chosen?: string) => {
     if (status !== "idle" || !current) return;
@@ -101,14 +111,12 @@ export function ExerciseSession({
     setStatus("idle");
     setValue("");
     setRevealed(false);
-    if (idx + 1 >= exercises.length) {
-      setDone(true);
-    } else {
-      setIdx(idx + 1);
-    }
+    if (idx + 1 >= exercises.length) setDone(true);
+    else setIdx(idx + 1);
   };
 
-  const restart = () => {
+  const restart = (asMaster: boolean) => {
+    setMaster(asMaster);
     setSeed((s) => s + 1);
     setIdx(0);
     setValue("");
@@ -124,39 +132,79 @@ export function ExerciseSession({
   if (done) {
     const ratio = correctCount / exercises.length;
     const stars: 0 | 1 | 2 | 3 = ratio >= 0.9 ? 3 : ratio >= 0.7 ? 2 : ratio >= 0.5 ? 1 : 0;
+    const trophyEarned = master && ratio >= 0.8;
+    const unlockedMaster = !master && stars === 3;
     return (
       <section className="max-w-3xl mx-auto px-6 py-12">
         <Confetti trigger={confettiTrigger} />
         <div className={`card p-8 text-center ${isDark ? "!bg-slate-900/70 !border-slate-700" : ""}`}>
-          <div className="text-6xl mb-4 pop">{stars === 3 ? "🏆" : stars === 2 ? "🌟" : stars === 1 ? "👍" : "💪"}</div>
-          <h2
-            className="text-3xl font-black"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            {stars === 3 ? "Fantastiskt!" : stars === 2 ? "Bra jobbat!" : stars === 1 ? "Bra start!" : "Försök igen!"}
+          <div className="text-6xl mb-4 pop">
+            {trophyEarned ? "🏆" : stars === 3 ? "🌟" : stars === 2 ? "👏" : stars === 1 ? "👍" : "💪"}
+          </div>
+          <h2 className="text-3xl font-black" style={{ fontFamily: "var(--font-display)" }}>
+            {trophyEarned
+              ? "Mästare!"
+              : stars === 3
+              ? "Fantastiskt!"
+              : stars === 2
+              ? "Bra jobbat!"
+              : stars === 1
+              ? "Bra start!"
+              : "Försök igen!"}
           </h2>
           <p className={`mt-2 ${isDark ? "text-slate-300" : "text-slate-600"}`}>
-            Du fick {correctCount} av {exercises.length} rätt.
+            Du fick {correctCount} av {exercises.length} rätt
+            {master ? " på Mästar-läget" : ""}.
           </p>
-          <div className="mt-4 flex items-center justify-center gap-1 text-3xl">
-            {[0, 1, 2].map((i) => (
-              <span key={i} className={i < stars ? "text-amber-500" : isDark ? "text-slate-700" : "text-slate-300"}>
-                ★
-              </span>
-            ))}
-          </div>
-          <div className="mt-6 flex items-center justify-center gap-3 flex-wrap">
+          {master ? (
+            <div className="mt-4 text-xl">
+              {trophyEarned ? "🏆 Trofé låst upp!" : "Behöver minst 80% rätt för trofén."}
+            </div>
+          ) : (
+            <div className="mt-4 flex items-center justify-center gap-1 text-3xl">
+              {[0, 1, 2].map((i) => (
+                <span
+                  key={i}
+                  className={i < stars ? "text-amber-500" : isDark ? "text-slate-700" : "text-slate-300"}
+                >
+                  ★
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3 flex-wrap">
+            {unlockedMaster && (
+              <button
+                onClick={() => restart(true)}
+                className="px-6 py-3 rounded-full font-bold bg-gradient-to-r from-amber-500 via-rose-500 to-fuchsia-600 text-white shadow-lg hover:shadow-xl transition-shadow"
+              >
+                🏆 Prova Mästar-läget
+              </button>
+            )}
             <button
-              onClick={restart}
+              onClick={() => restart(master)}
               className="px-6 py-3 rounded-full font-bold bg-gradient-to-r from-rose-500 to-fuchsia-600 text-white shadow-lg hover:shadow-xl transition-shadow"
             >
-              Kör en till omgång
+              {master ? "Försök igen" : "Kör en till omgång"}
             </button>
+            {master && (
+              <button
+                onClick={() => restart(false)}
+                className={`px-6 py-3 rounded-full font-bold border ${
+                  isDark ? "border-slate-600 text-slate-200 hover:bg-slate-800" : "border-zinc-300 hover:bg-zinc-100"
+                }`}
+              >
+                Tillbaka till vanligt läge
+              </button>
+            )}
             <Link
-              href={`/${stage}`}
-              className={`px-6 py-3 rounded-full font-bold border ${isDark ? "border-slate-600 text-slate-200 hover:bg-slate-800" : "border-zinc-300 hover:bg-zinc-100"}`}
+              href={`/${grade}`}
+              className={`px-6 py-3 rounded-full font-bold border ${
+                isDark ? "border-slate-600 text-slate-200 hover:bg-slate-800" : "border-zinc-300 hover:bg-zinc-100"
+              }`}
             >
-              Tillbaka till {stage === "lagstadiet" ? "lågstadiet" : stage === "mellanstadiet" ? "mellanstadiet" : "högstadiet"}
+              Tillbaka till åk {grade}
             </Link>
           </div>
         </div>
@@ -170,9 +218,10 @@ export function ExerciseSession({
 
   return (
     <section className="max-w-3xl mx-auto px-6 py-8">
-      <div className="flex items-center justify-between text-sm font-medium">
+      <div className="flex items-center justify-between text-sm font-medium flex-wrap gap-2">
         <span className={isDark ? "text-slate-400" : "text-slate-600"}>
           Fråga {idx + 1} / {exercises.length}
+          {master && <span className="ml-2 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold text-xs">🏆 MÄSTARE</span>}
         </span>
         <span className="flex items-center gap-3">
           <span className="inline-flex items-center gap-1">
@@ -191,7 +240,9 @@ export function ExerciseSession({
       </div>
 
       <div
-        className={`mt-6 card p-8 ${isDark ? "!bg-slate-900/70 !border-slate-700" : ""} ${status === "wrong" ? "shake" : ""}`}
+        className={`mt-6 card p-8 ${isDark ? "!bg-slate-900/70 !border-slate-700" : ""} ${
+          status === "wrong" ? "shake" : ""
+        }`}
       >
         {current.visual?.kind === "clock" && (
           <div className="flex justify-center mb-6">
@@ -199,6 +250,25 @@ export function ExerciseSession({
               hours={current.visual.hours}
               minutes={current.visual.minutes}
               size={220}
+              dark={isDark}
+            />
+          </div>
+        )}
+        {current.visual?.kind === "bar-chart" && (
+          <div className="flex justify-center mb-6">
+            <BarChart
+              bars={current.visual.bars}
+              title={current.visual.title}
+              unit={current.visual.unit}
+              dark={isDark}
+            />
+          </div>
+        )}
+        {current.visual?.kind === "pie-chart" && (
+          <div className="flex justify-center mb-6">
+            <PieChart
+              slices={current.visual.slices}
+              title={current.visual.title}
               dark={isDark}
             />
           </div>
@@ -336,6 +406,17 @@ export function ExerciseSession({
           </p>
         )}
       </div>
+
+      {!master && hasNormalThreeStars && idx === 0 && status === "idle" && (
+        <div className="mt-4 text-center">
+          <button
+            onClick={() => restart(true)}
+            className="text-sm font-semibold text-amber-600 hover:text-amber-700 underline"
+          >
+            🏆 Du har redan 3 stjärnor här — prova Mästar-läget
+          </button>
+        </div>
+      )}
     </section>
   );
 }
