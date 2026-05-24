@@ -93,7 +93,20 @@ export type Topic = {
 
 export type ExerciseKind = "input" | "multiple-choice";
 
-export type Visual = { kind: "clock"; hours: number; minutes: number };
+export type Visual =
+  | { kind: "clock"; hours: number; minutes: number }
+  | {
+      kind: "bar-chart";
+      title?: string;
+      bars: { label: string; value: number }[];
+      /** Y-axis unit (e.g. "kr", "elever") */
+      unit?: string;
+    }
+  | {
+      kind: "pie-chart";
+      title?: string;
+      slices: { label: string; value: number }[];
+    };
 
 export type Exercise = {
   id: string;

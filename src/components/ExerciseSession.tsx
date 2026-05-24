@@ -14,6 +14,8 @@ import {
 } from "@/lib/progress";
 import { Confetti } from "./Confetti";
 import { ClockFace } from "./ClockFace";
+import { BarChart } from "./BarChart";
+import { PieChart } from "./PieChart";
 
 const SESSION_LENGTH = 10;
 
@@ -248,6 +250,25 @@ export function ExerciseSession({
               hours={current.visual.hours}
               minutes={current.visual.minutes}
               size={220}
+              dark={isDark}
+            />
+          </div>
+        )}
+        {current.visual?.kind === "bar-chart" && (
+          <div className="flex justify-center mb-6">
+            <BarChart
+              bars={current.visual.bars}
+              title={current.visual.title}
+              unit={current.visual.unit}
+              dark={isDark}
+            />
+          </div>
+        )}
+        {current.visual?.kind === "pie-chart" && (
+          <div className="flex justify-center mb-6">
+            <PieChart
+              slices={current.visual.slices}
+              title={current.visual.title}
               dark={isDark}
             />
           </div>

@@ -789,10 +789,13 @@ const statistik: InternalGenerator = (rng, level) => {
       finalSorted.length % 2 === 1
         ? finalSorted[Math.floor(finalSorted.length / 2)]
         : (finalSorted[finalSorted.length / 2 - 1] + finalSorted[finalSorted.length / 2]) / 2;
+    const labelPool = ["Anna", "Bo", "Cleo", "David", "Eli", "Filip", "Greta"];
+    const bars = values.map((v, i) => ({ label: labelPool[i], value: v }));
     return {
       id: id(),
       kind: "input",
-      prompt: `Vad är medianen av: ${values.join(", ")}?`,
+      prompt: `Vad är medianen av värdena i diagrammet?`,
+      visual: { kind: "bar-chart", title: "Resultat (poäng)", bars, unit: "poäng" },
       answer: String(finalMedian),
       explanation: `Sorterat: ${finalSorted.join(", ")}.`,
     };
@@ -803,10 +806,14 @@ const statistik: InternalGenerator = (rng, level) => {
   if (sum % n !== 0) values[0] += n - (sum % n);
   const finalSum = values.reduce((a, b) => a + b, 0);
   const mean = finalSum / n;
+  // Visa data som stapeldiagram, så barnet tränar både diagramavläsning OCH medelvärde
+  const labelPool = ["Anna", "Bo", "Cleo", "David", "Eli", "Filip", "Greta"];
+  const bars = values.map((v, i) => ({ label: labelPool[i], value: v }));
   return {
     id: id(),
     kind: "input",
-    prompt: `Vad är medelvärdet av: ${values.join(", ")}?`,
+    prompt: `Vad är medelvärdet av värdena i diagrammet?`,
+    visual: { kind: "bar-chart", title: "Resultat (poäng)", bars, unit: "poäng" },
     answer: String(mean),
     explanation: `Summa = ${finalSum}, antal = ${n}, medel = ${mean}`,
   };
@@ -1302,39 +1309,111 @@ const symmetri: InternalGenerator = (rng, level) => {
 };
 
 const diagram: InternalGenerator = (rng, level) => {
-  // Mini stapeldiagram: ge 3-5 staplar och fråga om en
-  const n = byLevel(level, [3, 4, 4, 5]);
-  const max = byLevel(level, [10, 15, 25, 50]);
-  const labels = ["måndag", "tisdag", "onsdag", "torsdag", "fredag", "lördag", "söndag"];
-  const data = Array.from({ length: n }, (_, i) => ({
-    label: labels[i],
-    v: randInt(rng, 1, max),
-  }));
-  const sorted = [...data].sort((a, b) => b.v - a.v);
-  const q = randInt(rng, 0, 2);
+  // Använd alltid en visuell stapelgraf. Tema-set styr vad staplarna representerar.
+  const themes = [
+    {
+      title: "Antal glassar sålda per dag",
+      labels: ["mån", "tis", "ons", "tor", "fre", "lör", "sön"],
+      unit: "st",
+      singular: "dag",
+      askValue: (label: string) => `Hur många glassar såldes på ${label}?`,
+      askMax: "På vilken dag såldes flest glassar?",
+      askMin: "På vilken dag såldes minst glassar?",
+      askTotal: "Hur många glassar såldes totalt under perioden?",
+      askDiff: (a: string, b: string) => `Hur många FLER glassar såldes på ${a} än ${b}?`,
+    },
+    {
+      title: "Antal elever per klass",
+      labels: ["1A", "1B", "2A", "2B", "3A", "3B"],
+      unit: "elever",
+      singular: "klass",
+      askValue: (label: string) => `Hur många elever går i klass ${label}?`,
+      askMax: "Vilken klass har flest elever?",
+      askMin: "Vilken klass har minst elever?",
+      askTotal: "Hur många elever totalt?",
+      askDiff: (a: string, b: string) => `Hur många FLER elever har ${a} än ${b}?`,
+    },
+    {
+      title: "Antal böcker lästa per månad",
+      labels: ["jan", "feb", "mar", "apr", "maj", "jun"],
+      unit: "böcker",
+      singular: "månad",
+      askValue: (label: string) => `Hur många böcker lästes i ${label}?`,
+      askMax: "I vilken månad lästes flest böcker?",
+      askMin: "I vilken månad lästes minst böcker?",
+      askTotal: "Hur många böcker totalt?",
+      askDiff: (a: string, b: string) => `Hur många FLER böcker lästes i ${a} än ${b}?`,
+    },
+  ];
+  const theme = pick(rng, themes);
+  const n = byLevel(level, [3, 4, 5, 6]);
+  const valMax = byLevel(level, [10, 15, 25, 50]);
+  const usedLabels = shuffle(rng, theme.labels).slice(0, n);
+  // Säkerställ unika värden (lättare jämförelse-frågor)
+  const values = new Set<number>();
+  while (values.size < n) values.add(randInt(rng, 2, valMax));
+  const bars = usedLabels.map((label, i) => ({ label, value: Array.from(values)[i] }));
+
+  const sorted = [...bars].sort((a, b) => b.value - a.value);
+  const total = bars.reduce((s, b) => s + b.value, 0);
+
+  // L1: bara avläsning. L2+: max/min. L3+: total. L4: skillnad.
+  const variants: number[] = [];
+  variants.push(0); // avläsning alltid
+  if (level >= 2) variants.push(1, 2); // max + min
+  if (level >= 3) variants.push(3); // total
+  if (level >= 4) variants.push(4); // skillnad
+
+  const q = pick(rng, variants);
+
   if (q === 0) {
-    const target = pick(rng, data);
+    const target = pick(rng, bars);
     return {
       id: id(),
       kind: "input",
-      prompt: `I diagrammet: ${data.map((d) => `${d.label}=${d.v}`).join(", ")}. Hur många på ${target.label}?`,
-      answer: String(target.v),
+      prompt: theme.askValue(target.label),
+      visual: { kind: "bar-chart", title: theme.title, bars, unit: theme.unit },
+      answer: String(target.value),
     };
   }
   if (q === 1) {
     return {
       id: id(),
-      kind: "input",
-      prompt: `I diagrammet: ${data.map((d) => `${d.label}=${d.v}`).join(", ")}. På vilken dag var det flest?`,
+      kind: "multiple-choice",
+      prompt: theme.askMax,
+      visual: { kind: "bar-chart", title: theme.title, bars, unit: theme.unit },
+      choices: shuffle(rng, bars.map((b) => b.label)),
       answer: sorted[0].label,
     };
   }
-  const total = data.reduce((s, d) => s + d.v, 0);
+  if (q === 2) {
+    return {
+      id: id(),
+      kind: "multiple-choice",
+      prompt: theme.askMin,
+      visual: { kind: "bar-chart", title: theme.title, bars, unit: theme.unit },
+      choices: shuffle(rng, bars.map((b) => b.label)),
+      answer: sorted[sorted.length - 1].label,
+    };
+  }
+  if (q === 3) {
+    return {
+      id: id(),
+      kind: "input",
+      prompt: theme.askTotal,
+      visual: { kind: "bar-chart", title: theme.title, bars, unit: theme.unit },
+      answer: String(total),
+    };
+  }
+  // q === 4 — skillnad
+  const a = sorted[0];
+  const b = sorted[sorted.length - 1];
   return {
     id: id(),
     kind: "input",
-    prompt: `I diagrammet: ${data.map((d) => `${d.label}=${d.v}`).join(", ")}. Hur många totalt?`,
-    answer: String(total),
+    prompt: theme.askDiff(a.label, b.label),
+    visual: { kind: "bar-chart", title: theme.title, bars, unit: theme.unit },
+    answer: String(a.value - b.value),
   };
 };
 

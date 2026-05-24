@@ -69,17 +69,17 @@ export default function Home() {
 
       <section className="max-w-6xl mx-auto px-6 pb-24 grid gap-6 md:grid-cols-3">
         <FeatureCard
-          emoji="🎯"
+          icon="🎯"
           title="Anpassat efter Lgr22"
           text="Övningarna följer Skolverkets centrala innehåll för matematik per årskurs."
         />
         <FeatureCard
-          emoji="🏆"
+          icon="🏆"
           title="Mästar-troféer"
           text="Klara ämnen i Mästar-läge och samla troféer för varje årskurs."
         />
         <FeatureCard
-          emoji="🇸🇪"
+          icon={<SwedishFlag />}
           title="Helt på svenska"
           text="Allt material, alla frågor och alla förklaringar är på svenska."
         />
@@ -120,12 +120,41 @@ function GradeCard({ grade }: { grade: Grade }) {
   );
 }
 
-function FeatureCard({ emoji, title, text }: { emoji: string; title: string; text: string }) {
+function FeatureCard({
+  icon,
+  title,
+  text,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  text: string;
+}) {
   return (
     <div className="card p-6">
-      <div className="text-3xl">{emoji}</div>
+      <div className="text-3xl">{icon}</div>
       <h3 className="mt-3 font-bold text-lg">{title}</h3>
       <p className="mt-1 text-slate-600 text-sm leading-relaxed">{text}</p>
     </div>
+  );
+}
+
+function SwedishFlag({ className }: { className?: string }) {
+  // Officiella proportioner 10:16, gult kors med blå bakgrund.
+  return (
+    <svg
+      viewBox="0 0 16 10"
+      className={className}
+      width="48"
+      height="30"
+      role="img"
+      aria-label="Sveriges flagga"
+      style={{ borderRadius: 3, boxShadow: "0 1px 2px rgba(0,0,0,0.15)" }}
+    >
+      <rect width="16" height="10" fill="#006AA7" />
+      {/* Vertikal del av korset */}
+      <rect x="5" y="0" width="2" height="10" fill="#FECC00" />
+      {/* Horisontell del av korset */}
+      <rect x="0" y="4" width="16" height="2" fill="#FECC00" />
+    </svg>
   );
 }
